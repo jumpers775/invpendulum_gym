@@ -151,14 +151,14 @@ class REINFORCE:
         # Empty / zero out all episode-centric/related variables
         self.probs = []
         self.rewards = []
-
+        
 
 if torch.backends.mps.is_available():
     mps_device = torch.device("mps")
     x = torch.ones(1, device=mps_device)
 
 # Create and wrap the environment
-env = gym.make("inv_pend_env/inv_pendulum_v0")
+env = gym.make("inv_pend_env/inv_pendulum_v0", plot=True)
 #env = gym.make("InvertedPendulum-v4")
 
 wrapped_env = gym.wrappers.RecordEpisodeStatistics(env, 50)  # Records episode-reward
@@ -214,8 +214,13 @@ for seed in [1, 2, 3, 5, 8]:  # Fibonacci seeds
 rewards_to_plot = [[reward[0] for reward in rewards] for rewards in rewards_over_seeds]
 df1 = pd.DataFrame(rewards_to_plot).melt()
 df1.rename(columns={"variable": "episodes", "value": "reward"}, inplace=True)
-sns.set(style="darkgrid", context="talk", palette="rainbow")
+custom_theme = {
+    'style': 'darkgrid',
+    'context': 'talk',
+    'palette': 'rainbow'
+}
+sns.set_theme(**custom_theme)
 sns.lineplot(x="episodes", y="reward", data=df1).set(
-    title="REINFORCE for InvertedPendulum"
+    title="REINFORCE for Inverted Pendulum"
 )
 plt.show()
