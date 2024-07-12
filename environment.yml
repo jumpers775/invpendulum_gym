@@ -1,0 +1,15 @@
+name: InvPendEnv
+channels:
+- conda-forge
+- defaults
+- pytorch
+dependencies:
+- python=3.10
+- numpy=1.26.4
+- pandas=2.2.2
+- matplotlib=3.9.1
+- scipy=1.14.0
+- pytorch=2.3.1
+- gymnasium=0.29.1
+- seaborn=0.13.2
+- pygame=2.6.0
