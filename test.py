@@ -90,17 +90,3 @@ for _ in range(125):
     
     timestep += 1
 env.close()
-
-# for num in range(len(controls)):
-
-#     fig, ax = plt.subplots(1, 2)
-
-#     ax[0].plot(np.linspace(0, len(thetas[num]), len(thetas[num])), thetas[num], label="theta")
-#     ax[0].set(xlabel='Time', ylabel='theta')
-
-#     ax[1].plot(np.linspace(0, len(controls[num]), len(controls[num])), controls[num], label="control amnt")
-#     ax[1].set(xlabel='Time', ylabel='control force')
-
-#     fig.subplots_adjust(wspace=0.3) 
-#     fig.suptitle('Inverted Pendulum')
-#     plt.show()
