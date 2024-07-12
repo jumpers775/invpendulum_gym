@@ -1,2 +1,3 @@
-`$ conda env create -f environment.yml
-$ conda activate InvPendEnv`
+`$ conda env create -f environment.yml`
+
+`$ conda activate InvPendEnv`
