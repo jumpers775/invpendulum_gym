@@ -2,6 +2,8 @@ import inv_pend_env
 import gymnasium
 import time
 import numpy as np
+import matplotlib.pyplot as plt
+from scipy import integrate
 
 class PIDController:
     def __init__(self, setpoint, kp, ki, kd):
@@ -41,25 +43,64 @@ class PIDController:
 # known good
 kp = 10
 ki = 0
-kd = 2
+kd = 8
+
+def inverted_pendulum(t, y, setpoint, kp, ki, kd):
+    global gravity, length, mass
+    u = controller.control(t, y)
+
+    controls[-1].append(u)
+    controls[-1].append(u)
+
+    theta, velocity = y
+    dtheta_dt = velocity
+    dvelocity_dt = (gravity / length) * np.sin(theta) + u / (mass * (length ** 2))
+    print(dtheta_dt, dvelocity_dt)
+    return dtheta_dt, dvelocity_dt
 
 
-theta = np.pi/4
-env = gymnasium.make('inv_pend_env/inv_pendulum_v0', seed=0, plot=True, disallowcontrol=False, terminate=False)
+
+gravity = 9.81
+length = 1.0
+mass = 1.0
+
+env = gymnasium.make('inv_pend_env/inv_pendulum_v0', seed=0, plot=True, disallowcontrol=False, terminate=False, gravity=gravity, length=length, mass=mass, render_mode="human")
 observation, info = env.reset()
 controller = PIDController(0, kp, ki, kd)
 timestep = 0
 control = 0
-for _ in range(200):
+thetas = [[-1]]
+controls = [[]]
+for _ in range(125):
     #time.sleep(0.5)
+    controls[-1].append(control)
+    controls[-1].append(control)
     observation, reward, terminated, truncated, info = env.step([control])
+    thetas[-1].append(observation[0])
     print("Reward: " + str(reward))
     control = controller.control(timestep, observation[0])
     if terminated or truncated:
+        thetas.append([])
+        controls.append([])
         observation, info = env.reset()
+        thetas[-1].append(observation[0])
         timestep = 0
         controller = PIDController(0, kp, ki, kd)
         control = controller.control(timestep, observation[0])
-
+    
     timestep += 1
 env.close()
+
+# for num in range(len(controls)):
+
+#     fig, ax = plt.subplots(1, 2)
+
+#     ax[0].plot(np.linspace(0, len(thetas[num]), len(thetas[num])), thetas[num], label="theta")
+#     ax[0].set(xlabel='Time', ylabel='theta')
+
+#     ax[1].plot(np.linspace(0, len(controls[num]), len(controls[num])), controls[num], label="control amnt")
+#     ax[1].set(xlabel='Time', ylabel='control force')
+
+#     fig.subplots_adjust(wspace=0.3) 
+#     fig.suptitle('Inverted Pendulum')
+#     plt.show()

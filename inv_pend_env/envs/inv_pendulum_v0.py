@@ -3,7 +3,8 @@ import pygame
 import gymnasium as gym
 from gymnasium import spaces
 import matplotlib.pyplot as plt
-
+from scipy import integrate
+import itertools
 
 
 
@@ -13,30 +14,30 @@ class InvPend(gym.Env):
 
     def __init__(self, 
                  render_mode=None, 
-                 setpoint: int | float=0, size: int | float=1, 
+                 setpoint: int | float=0,
+                 length: int | float=1, 
                  mass: int | float=1, 
+                 gravity: int | float=9.81,
                  plot: bool = False, 
                  seed: int | float = None, 
                  disallowcontrol: bool = False, 
-                 start: int | float=None, 
                  timestep: int | float = 0.1,
                  terminate: bool = True,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._theta = start or self.np_random.uniform(low=-np.pi/2, high=np.pi/2)
-        self._start = start
+        self._theta = self.np_random.uniform(low=-np.pi/2, high=np.pi/2)
         self._velocity = 0
-        self._gravity = 9.81
+        self._gravity = gravity
         self._mass = mass
-        self._length = size
+        self._length = length
         self._setpoint = setpoint
         
         self.timestep = timestep
         self.disallowcontrol = disallowcontrol
         self.seed = seed or None
         self.plot = plot
-        self._lastpass = None
         self.terminate = terminate
+
         self.action_space = spaces.Box(low=-50, high=50, shape=(1,), dtype=np.float32)
         self.observation_space = spaces.Box(low=-np.pi, high=np.pi, shape=(2,), dtype=np.float32)
 
@@ -47,17 +48,19 @@ class InvPend(gym.Env):
         self.clock = None
 
         self.steps = 0
-
+        self.lasttime = 0
         self.controls = []
         self.thetas = []
 
+
+        self.thetatimes = []
     def _get_obs(self):
         return np.array([self._theta, self._setpoint - self._theta], dtype=np.float32)
     def _get_info(self):
         return {"distance": self._theta - self._setpoint}
     def reset(self, seed=None, options=None):
         super().reset(seed=seed or self.seed or None)
-        self._theta = self._start or self.np_random.uniform(low=-np.pi/2, high=np.pi/2)
+        self._theta = self.np_random.uniform(low=-np.pi/2, high=np.pi/2)
         self._velocity = 0
         self.steps = 0
         observation = self._get_obs()
@@ -66,31 +69,39 @@ class InvPend(gym.Env):
         if self.render_mode == "human":
             self._render_frame(True)
         return observation, info
-
+    def getpendupdate(self,t: int | float, theta: list , u: int | float) -> tuple:
+        timestep = t-self.lasttime
+        self.lasttime = t
+        current_velocity = theta[0]
+        dvelocity = ((self._gravity / self._length) * np.sin(theta[1]) + u / (self._mass * (self._length ** 2))) * timestep
+        dtheta = current_velocity + dvelocity
+        return dvelocity, dtheta
     def step(self, action):
-        self._lastpass = self._theta
         force = action[0] if not self.disallowcontrol else 0
         if self.steps == 0:
             self.controls.append([])
             self.thetas.append([])
+            self.thetatimes.append([])
         self.controls[-1].append(action[0])
-        self.thetas[-1].append(self._theta)
-
-        self._velocity += ((self._gravity / self._length) * np.sin(self._theta) + force / (self._mass * (self._length ** 2))) * self.timestep
-        self._theta += self._velocity
-        terminated = (
-            (
-                self._theta > np.pi/2 or self._theta < -np.pi/2
-             )
-              ) if self.terminate else False
         
-        #reward = 100 * (np.square(np.pi-abs(self._theta - self._setpoint)) - 0.1 * np.square(force))
+        
+        differential = integrate.solve_ivp(self.getpendupdate, [self.steps, self.steps+1], [self._velocity,self._theta], args=(force,))
+        self.thetas[-1] += list(differential.y[1])
+        self.thetatimes[-1] += list(differential.t)
+        self._velocity = differential.y[0][-1]
+        self._theta = differential.y[1][-1]
+
+
+        terminated = (
+                        self._theta > np.pi/2 or self._theta < -np.pi/2
+                    ) if self.terminate else False
         reward = (np.pi-abs(self._theta - self._setpoint))/np.pi
         observation = self._get_obs()
         info = self._get_info()
 
         if self.render_mode == "human":
             self._render_frame()
+
 
         self.steps +=1
         return observation, reward, terminated, False, info
@@ -139,10 +150,13 @@ class InvPend(gym.Env):
             self._plot()
     def _plot(self):
         for num in range(len(self.controls)):
+
             fig, ax = plt.subplots(1, 2)
 
-            ax[0].plot(np.linspace(0, len(self.thetas[num]), len(self.thetas[num])), self.thetas[num], label="theta")
+
+            ax[0].plot(self.thetatimes[num], self.thetas[num], label="theta", color="blue")
             ax[0].set(xlabel='Time', ylabel='theta')
+
 
             ax[1].plot(np.linspace(0, len(self.controls[num]), len(self.controls[num])), self.controls[num], label="control amnt")
             ax[1].set(xlabel='Time', ylabel='control force')

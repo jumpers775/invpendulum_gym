@@ -11,9 +11,9 @@ import seaborn as sns
 import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
-
+import os
 import gymnasium as gym
-
+import time
 
 plt.rcParams["figure.figsize"] = (10, 5)
 
@@ -151,6 +151,11 @@ class REINFORCE:
         # Empty / zero out all episode-centric/related variables
         self.probs = []
         self.rewards = []
+    def save(self, checkpoint_path):
+        torch.save(self.net.state_dict(), checkpoint_path)
+    def load(self, checkpoint_path):
+        self.net.load_state_dict(torch.load(checkpoint_path))
+
         
 
 if torch.backends.mps.is_available():
@@ -158,18 +163,25 @@ if torch.backends.mps.is_available():
     x = torch.ones(1, device=mps_device)
 
 # Create and wrap the environment
-env = gym.make("inv_pend_env/inv_pendulum_v0", plot=True)
+env = gym.make("inv_pend_env/inv_pendulum_v0")
 #env = gym.make("InvertedPendulum-v4")
 
 wrapped_env = gym.wrappers.RecordEpisodeStatistics(env, 50)  # Records episode-reward
 
-total_num_episodes = int(1e5)  # Total number of episodes
+total_num_episodes = int(2e6)  # Total number of episodes
 # Observation-space of InvertedPendulum-v4 (4)
 
 obs_space_dims = env.observation_space.shape[0]
 # Action-space of InvertedPendulum-v4 (1)
 action_space_dims = env.action_space.shape[0]
 rewards_over_seeds = []
+
+agent = REINFORCE(obs_space_dims, action_space_dims)
+try:
+    agent.load(f"checkpoints/REINFORCE.pth")
+    print("Loaded checkpoint")
+except FileNotFoundError:
+    print("No checkpoint found")
 
 for seed in [1, 2, 3, 5, 8]:  # Fibonacci seeds
     # set seed
@@ -178,7 +190,7 @@ for seed in [1, 2, 3, 5, 8]:  # Fibonacci seeds
     np.random.seed(seed)
 
     # Reinitialize agent every seed
-    agent = REINFORCE(obs_space_dims, action_space_dims)
+    #agent = REINFORCE(obs_space_dims, action_space_dims)
     reward_over_episodes = []
 
     for episode in range(total_num_episodes):
@@ -210,6 +222,26 @@ for seed in [1, 2, 3, 5, 8]:  # Fibonacci seeds
 
     rewards_over_seeds.append(reward_over_episodes)
 
+os.makedirs("checkpoints", exist_ok=True)
+agent.save(f"checkpoints/REINFORCE.pth")
+
+
+input("PRESS ENTER TO CONTINUE.")
+
+env = gym.make("inv_pend_env/inv_pendulum_v0", render_mode="human")
+obs, info = wrapped_env.reset(seed=seed)
+
+done = False
+while not done:
+    time.sleep(0.1)
+    action = agent.sample_action(obs)
+
+    obs, reward, terminated, truncated, info = wrapped_env.step(action)
+    print("Reward: " + str(reward))
+
+    done = terminated or truncated
+
+
 
 rewards_to_plot = [[reward[0] for reward in rewards] for rewards in rewards_over_seeds]
 df1 = pd.DataFrame(rewards_to_plot).melt()
@@ -223,4 +255,5 @@ sns.set_theme(**custom_theme)
 sns.lineplot(x="episodes", y="reward", data=df1).set(
     title="REINFORCE for Inverted Pendulum"
 )
+
 plt.show()
