@@ -4,7 +4,8 @@ import gymnasium as gym
 from gymnasium import spaces
 import matplotlib.pyplot as plt
 from scipy import integrate
-import itertools
+import datetime
+from pathlib import Path
 
 
 
@@ -163,4 +164,18 @@ class InvPend(gym.Env):
 
             fig.subplots_adjust(wspace=0.3) 
             fig.suptitle('Inverted Pendulum')
-            plt.show()
+            # Save the plot as an image with a name based on the current date and time
+            
+            # Create the 'graphs' directory if it doesn't exist
+            Path("graphs").mkdir(exist_ok=True)
+            
+            # Generate a unique filename using the current date and time
+            now = datetime.datetime.now()
+            timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"graphs/inverted_pendulum_{timestamp}.png"
+            
+            # Save the plot to the specified file
+            fig.savefig(filename)
+            
+            # Close the figure to free up resources
+            plt.close(fig)
