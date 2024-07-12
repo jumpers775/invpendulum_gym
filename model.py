@@ -14,6 +14,7 @@ from torch.distributions.normal import Normal
 import os
 import gymnasium as gym
 import time
+import sys
 
 plt.rcParams["figure.figsize"] = (10, 5)
 
@@ -157,10 +158,15 @@ class REINFORCE:
         self.net.load_state_dict(torch.load(checkpoint_path))
 
         
-
-if torch.backends.mps.is_available():
-    mps_device = torch.device("mps")
-    x = torch.ones(1, device=mps_device)
+if torch.cuda.is_available():
+    device = torch.device("cuda:0")
+    x = torch.ones(1, device=device)
+elif torch.backends.mps.is_available():
+    device = torch.device("mps")
+    x = torch.ones(1, device=device)
+else:
+    device = torch.device("cpu")
+    x = torch.ones(1, device=device)
 
 # Create and wrap the environment
 env = gym.make("inv_pend_env/inv_pendulum_v0")
@@ -177,14 +183,20 @@ action_space_dims = env.action_space.shape[0]
 rewards_over_seeds = []
 
 agent = REINFORCE(obs_space_dims, action_space_dims)
+
+
+training = "train" in sys.argv
+
 try:
     agent.load(f"checkpoints/REINFORCE.pth")
     print("Loaded checkpoint")
 except FileNotFoundError:
     print("No checkpoint found")
+    training = True
 
-for seed in [1, 2, 3, 5, 8]:  # Fibonacci seeds
+if training:
     # set seed
+    seed = 1    
     torch.manual_seed(seed)
     random.seed(seed)
     np.random.seed(seed)
@@ -222,8 +234,8 @@ for seed in [1, 2, 3, 5, 8]:  # Fibonacci seeds
 
     rewards_over_seeds.append(reward_over_episodes)
 
-os.makedirs("checkpoints", exist_ok=True)
-agent.save(f"checkpoints/REINFORCE.pth")
+    os.makedirs("checkpoints", exist_ok=True)
+    agent.save(f"checkpoints/REINFORCE.pth")
 
 
 input("PRESS ENTER TO CONTINUE.")
