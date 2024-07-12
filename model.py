@@ -201,8 +201,6 @@ if training:
     random.seed(seed)
     np.random.seed(seed)
 
-    # Reinitialize agent every seed
-    #agent = REINFORCE(obs_space_dims, action_space_dims)
     reward_over_episodes = []
 
     for episode in range(total_num_episodes):
