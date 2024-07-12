@@ -1,5 +1,5 @@
 venv/*
 checkpoints/*
 graphs/*
-__pychache__/*
+__pycache__/*
 inv_pend_env/envs/__pycache__
