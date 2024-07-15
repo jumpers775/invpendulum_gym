@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from scipy import integrate
 import datetime
 from pathlib import Path
-
+import torch
 
 
 
@@ -52,6 +52,9 @@ class InvPend(gym.Env):
         self.lasttime = 0
         self.controls = []
         self.thetas = []
+        
+
+        self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
         self.thetatimes = []
@@ -69,14 +72,30 @@ class InvPend(gym.Env):
 
         if self.render_mode == "human":
             self._render_frame(True)
-        return observation, info
-    def getpendupdate(self,t: int | float, theta: list , u: int | float) -> tuple:
-        timestep = t-self.lasttime
-        self.lasttime = t
-        current_velocity = theta[0]
-        dvelocity = ((self._gravity / self._length) * np.sin(theta[1]) + u / (self._mass * (self._length ** 2))) * timestep
-        dtheta = current_velocity + dvelocity
-        return dvelocity, dtheta
+        return observation, info   
+
+    def getpendupdate(self,t,info,u):
+        update = self._getpendupdate(t,info,u,self.lasttime, self._gravity, self._length, self._mass, self._device)
+        self.lasttime = update[-1]
+        return update[:-2]
+    @staticmethod
+    @torch.jit.script
+    def _getpendupdate(t: float, info: list[float], u: float, lasttime: float, gravity: float, length: float, mass: float, device: torch.device) -> tuple:    
+        theta = info[1]
+        velocity = info[0]
+        theta = torch.tensor(theta, device=device)
+        velocity = torch.tensor(velocity, device=device)
+        u = torch.tensor(u, device=device)
+        lasttime = torch.tensor(lasttime, device=device)
+        gravity = torch.tensor(gravity, device=device)
+        length = torch.tensor(length, device=device)
+        mass = torch.tensor(mass, device=device)
+        timestep = t - lasttime
+        lasttime = t
+        dvelocity = ((gravity / length) * torch.sin(theta) + u / (mass * (length ** 2))) * timestep
+        dtheta = velocity + dvelocity
+                
+        return dvelocity.cpu(), dtheta.cpu(), lasttime
     def step(self, action):
         force = action[0] if not self.disallowcontrol else 0
         if self.steps == 0:

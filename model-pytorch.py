@@ -83,7 +83,7 @@ class Policy_Network(nn.Module):
 class REINFORCE:
     """REINFORCE algorithm."""
 
-    def __init__(self, obs_space_dims: int, action_space_dims: int):
+    def __init__(self, obs_space_dims: int, action_space_dims: int, device):
         """Initializes an agent that learns a policy via REINFORCE algorithm [1]
         to solve the task at hand (Inverted Pendulum v4).
 
@@ -99,7 +99,7 @@ class REINFORCE:
 
         self.probs = []  # Stores probability values of the sampled action
         self.rewards = []  # Stores the corresponding rewards
-
+        self.device = device
         self.net = Policy_Network(obs_space_dims, action_space_dims)
         self.optimizer = torch.optim.AdamW(self.net.parameters(), lr=self.learning_rate)
 
@@ -112,7 +112,7 @@ class REINFORCE:
         Returns:
             action: Action to be performed
         """
-        state = torch.tensor(np.array([state]))
+        state = torch.tensor(np.array([state]), device=self.device)
         action_means, action_stddevs = self.net(state)
 
         # create a normal distribution from the predicted
@@ -121,6 +121,8 @@ class REINFORCE:
         action = distrib.sample()
         prob = distrib.log_prob(action)
 
+
+        action = action.cpu()
         action = action.numpy()
 
         self.probs.append(prob)
@@ -159,12 +161,15 @@ class REINFORCE:
 
         
 if torch.cuda.is_available():
+    print("using CUDA")
     device = torch.device("cuda:0")
     x = torch.ones(1, device=device)
 elif torch.backends.mps.is_available():
+    print("using MPS")
     device = torch.device("mps")
     x = torch.ones(1, device=device)
 else:
+    print("using CPU")
     device = torch.device("cpu")
     x = torch.ones(1, device=device)
 
@@ -182,13 +187,15 @@ obs_space_dims = env.observation_space.shape[0]
 action_space_dims = env.action_space.shape[0]
 rewards_over_seeds = []
 
-agent = REINFORCE(obs_space_dims, action_space_dims)
+agent = REINFORCE(obs_space_dims, action_space_dims, device)
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+agent.net.to(device)
 
 training = "train" in sys.argv
 
 try:
-    agent.load(f"checkpoints/REINFORCE.pth")
+    agent.load(f"checkpoints/model-pytorch.pth")
     print("Loaded checkpoint")
 except FileNotFoundError:
     print("No checkpoint found")
@@ -216,6 +223,7 @@ if training:
             # if the episode is terminated, if the episode is truncated and
             # additional info from the step
             obs, reward, terminated, truncated, info = wrapped_env.step(action)
+            reward = torch.tensor(reward, device=device)
             agent.rewards.append(reward)
 
             # End the episode when either truncated or terminated is true
@@ -233,7 +241,7 @@ if training:
     rewards_over_seeds.append(reward_over_episodes)
 
     os.makedirs("checkpoints", exist_ok=True)
-    agent.save(f"checkpoints/REINFORCE.pth")
+    agent.save(f"checkpoints/model-pytorch.pth")
 
 
 input("PRESS ENTER TO CONTINUE.")
