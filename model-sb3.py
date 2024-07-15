@@ -3,7 +3,7 @@ import os
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 import inv_pend_env
-
+import sys
 # Parallel environments
 vec_env = make_vec_env("inv_pend_env/inv_pendulum_v0", n_envs=4)
 
@@ -14,9 +14,19 @@ model.save("checkpoints/model-sb3.pth")
 
 del model # remove to demonstrate saving and loading
 
+
 model = PPO.load("checkpoints/model-sb3.pth")
 
-obs = vec_env.reset()
-while True:
-    action, _states = model.predict(obs)
-    obs, rewards, dones, info = vec_env.step(action)
+if "train" in sys.argv:
+    obs = vec_env.reset()
+    for i in range(2e6):
+        action, _states = model.predict(obs)
+        obs, rewards, dones, info = vec_env.step(action)
+elif "test" in sys.argv:
+    obs = vec_env.reset()
+    for i in range(1000):
+        action, _states = model.predict(obs)
+        obs, rewards, dones, info = vec_env.step(action)
+        vec_env.render("human")
+else:
+    print("Please provide train or test as argument")
