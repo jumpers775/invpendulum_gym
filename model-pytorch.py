@@ -192,21 +192,21 @@ agent = REINFORCE(obs_space_dims, action_space_dims, device)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 agent.net.to(device)
 
-training = "train" in sys.argv
 
+training = "train" in sys.argv
 try:
     agent.load(f"checkpoints/model-pytorch.pth")
     print("Loaded checkpoint")
 except FileNotFoundError:
     print("No checkpoint found")
     training = True
+# set seed
+seed = 0
+torch.manual_seed(seed)
+random.seed(seed)
+np.random.seed(seed)
 
 if training:
-    # set seed
-    seed = 1    
-    torch.manual_seed(seed)
-    random.seed(seed)
-    np.random.seed(seed)
 
     reward_over_episodes = []
 
@@ -251,7 +251,6 @@ obs, info = wrapped_env.reset(seed=seed)
 
 done = False
 while not done:
-    time.sleep(0.1)
     action = agent.sample_action(obs)
 
     obs, reward, terminated, truncated, info = wrapped_env.step(action)
