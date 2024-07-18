@@ -5,6 +5,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.evaluation import evaluate_policy
 import inv_pend_env
 import sys
+import time
 # Parallel environments
 vec_env = make_vec_env("inv_pend_env/inv_pendulum_v0", n_envs=4)
 
@@ -26,7 +27,7 @@ if "train" in sys.argv:
 
     print(f"Untrained mean_reward={mean_reward:.2f} +/- {std_reward}")
 
-    model.learn(total_timesteps=int(2e6), progress_bar=True)
+    model.learn(total_timesteps=int(1e7), progress_bar=True)
     os.makedirs("checkpoints", exist_ok=True)
     model.save("checkpoints/model-sb3.pth")
 
@@ -45,10 +46,12 @@ if "train" in sys.argv:
 elif "test" in sys.argv:
     del model
     model = PPO.load("checkpoints/model-sb3.pth")
-    obs = vec_env.reset()
-    for i in range(20):
-        action, _states = model.predict(obs)
-        obs, rewards, dones, info = vec_env.step(action)
-        vec_env.render("human")
+    for _ in range(20):
+        obs = vec_env.reset()
+        for i in range(20):
+            time.sleep(0.1)
+            action, _states = model.predict(obs)
+            obs, rewards, dones, info = vec_env.step(action)
+            vec_env.render("human")
 else:
     print("Please provide train or test as argument")

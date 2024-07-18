@@ -7,6 +7,8 @@ from scipy import integrate
 import datetime
 from pathlib import Path
 import torch
+# from numba import jitclass
+# from numba import int32, float32
 
 
 
@@ -59,6 +61,9 @@ class InvPend(gym.Env):
 
 
         self.thetatimes = []
+
+        self.totalbalanced = 0
+        self.balanced = 0
     def _get_obs(self):
         return np.array([self._theta, self._setpoint - self._theta], dtype=np.float32)
     def _get_info(self):
@@ -68,6 +73,7 @@ class InvPend(gym.Env):
         self._theta = self.np_random.uniform(low=-np.pi/2, high=np.pi/2)
         self._velocity = 0
         self.steps = 0
+        self.totalbalanced = 0
         observation = self._get_obs()
         info = self._get_info()
 
@@ -82,39 +88,17 @@ class InvPend(gym.Env):
         dvelocity = ((self._gravity / self._length) * np.sin(theta[1]) + u / (self._mass * (self._length ** 2))) * timestep
         dtheta = current_velocity + dvelocity
         return dvelocity, dtheta
-
-    # jit compiling ends up being slower for some reason
-    def getpendupdate_jit(self, t: int | float, info: list, u: int | float) -> tuple:
-
-        update = self._getpendupdate(t,info,u,self.lasttime, self._gravity, self._length, self._mass, self._device)
-        self.lasttime = update[-1]
-        return update[:-2]
-    
-    @staticmethod
-    @torch.jit.script
-    def _getpendupdate(t: float, info: list[float], u: float, lasttime: float, gravity: float, length: float, mass: float, device: torch.device) -> tuple:    
-        theta = info[1]
-        velocity = info[0]
-        theta = torch.tensor(theta, device=device)
-        velocity = torch.tensor(velocity, device=device)
-        u = torch.tensor(u, device=device)
-        lasttime = torch.tensor(lasttime, device=device)
-        gravity = torch.tensor(gravity, device=device)
-        length = torch.tensor(length, device=device)
-        mass = torch.tensor(mass, device=device)
-        timestep = t - lasttime
-        lasttime = t
-        dvelocity = ((gravity / length) * torch.sin(theta) + u / (mass * (length ** 2))) * timestep
-        dtheta = velocity + dvelocity
-                
-        return dvelocity.cpu(), dtheta.cpu(), lasttime
-    
+        
     def step(self, action):
         force = action[0] if not self.disallowcontrol else 0
         if self.steps == 0:
             self.controls.append([])
             self.thetas.append([])
             self.thetatimes.append([])
+            thetadiff = 0
+        else:
+            thetadiff = np.pi-abs((self._theta - self._setpoint) - (self.thetas[-1][-1] - self._setpoint))
+
         self.controls[-1].append(action[0])
         
         differential = integrate.solve_ivp(self.getpendupdate, [self.steps, self.steps+1], [self._velocity,self._theta], args=(force,))
@@ -127,7 +111,23 @@ class InvPend(gym.Env):
         terminated = (
                         self._theta > np.pi/2 or self._theta < -np.pi/2
                     ) if self.terminate else False
-        reward = (np.pi-abs(self._theta - self._setpoint))/np.pi
+        
+
+        if self._theta > -np.pi/10 and self._theta < np.pi/10:
+            self.totalbalanced += 1
+            self.balanced +=1
+        else:
+            self.balanced = 0
+
+
+
+        loccoef = 10
+        movcoef = 2
+
+
+        reward = loccoef*((np.pi-abs(self._theta - self._setpoint))/np.pi)**2 + movcoef*thetadiff
+
+
         observation = self._get_obs()
         info = self._get_info()
 
