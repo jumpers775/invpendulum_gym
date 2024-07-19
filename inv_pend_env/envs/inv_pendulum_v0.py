@@ -62,18 +62,15 @@ class InvPend(gym.Env):
 
         self.thetatimes = []
 
-        self.totalbalanced = 0
-        self.balanced = 0
     def _get_obs(self):
         return np.array([self._theta, self._setpoint - self._theta], dtype=np.float32)
     def _get_info(self):
         return {"distance": self._theta - self._setpoint}
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None, options=None, val=None):
         super().reset(seed=seed or self.seed or None)
-        self._theta = self.np_random.uniform(low=-np.pi/2, high=np.pi/2)
+        self._theta = val or self.np_random.uniform(low=-np.pi/2, high=np.pi/2)
         self._velocity = 0
         self.steps = 0
-        self.totalbalanced = 0
         observation = self._get_obs()
         info = self._get_info()
 
@@ -111,15 +108,8 @@ class InvPend(gym.Env):
         terminated = (
                         self._theta > np.pi/2 or self._theta < -np.pi/2
                     ) if self.terminate else False
-        
-
-        if self._theta > -np.pi/10 and self._theta < np.pi/10:
-            self.totalbalanced += 1
-            self.balanced +=1
-        else:
-            self.balanced = 0
-
-
+        if terminated:
+            print(self._theta)
 
         loccoef = 10
         movcoef = 2

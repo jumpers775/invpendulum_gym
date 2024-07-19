@@ -41,16 +41,13 @@ class PIDController:
 
         return u
 # known good
-kp = 10
+kp = 400
 ki = 0
-kd = 8
+kd = 500
 
 def inverted_pendulum(t, y, setpoint, kp, ki, kd):
     global gravity, length, mass
     u = controller.control(t, y)
-
-    controls[-1].append(u)
-    controls[-1].append(u)
 
     theta, velocity = y
     dtheta_dt = velocity
@@ -64,29 +61,43 @@ gravity = 9.81
 length = 1.0
 mass = 1.0
 
-env = gymnasium.make('inv_pend_env/inv_pendulum_v0', seed=0, plot=True, disallowcontrol=False, terminate=False, gravity=gravity, length=length, mass=mass, render_mode="human")
-observation, info = env.reset()
+
+
+passes = 10
+env = gymnasium.make('inv_pend_env/inv_pendulum_v0')
+conditions = np.linspace(-np.pi/2, np.pi/2, passes)
+observation, info = env.reset(val=conditions[0])
 controller = PIDController(0, kp, ki, kd)
 timestep = 0
-control = 0
-thetas = [[-1]]
-controls = [[]]
-for _ in range(125):
-    #time.sleep(0.5)
-    controls[-1].append(control)
-    controls[-1].append(control)
-    observation, reward, terminated, truncated, info = env.step([control])
-    thetas[-1].append(observation[0])
-    print("Reward: " + str(reward))
+control = controller.control(timestep, observation[0])
+starts = []
+
+for i in range(0,passes):
+    terminated = False
+    truncated = False
+    start = observation[0]
+    passes = 0
+
+    observation, info = env.reset(val=conditions[i])
+    timestep = 0
+    controller = PIDController(0, kp, ki, kd)
     control = controller.control(timestep, observation[0])
-    if terminated or truncated:
-        thetas.append([])
-        controls.append([])
-        observation, info = env.reset()
-        thetas[-1].append(observation[0])
-        timestep = 0
-        controller = PIDController(0, kp, ki, kd)
+    while not terminated and not truncated:
+        passes +=1
+        observation, reward, terminated, truncated, info = env.step([control])
+        #print("Reward: " + str(reward))
         control = controller.control(timestep, observation[0])
+        if terminated or truncated:
+            starts.append(passes==200)
     
     timestep += 1
 env.close()
+
+# Plotting conditions vs starts
+plt.figure()
+plt.scatter(conditions, starts, c=starts, cmap='RdYlGn')
+plt.xlabel('Conditions')
+plt.ylabel('Starts')
+plt.title('Starts vs Conditions')
+plt.grid(True)
+plt.show()
