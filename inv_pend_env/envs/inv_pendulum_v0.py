@@ -43,7 +43,7 @@ class InvPend(gym.Env):
         self.terminate = terminate
 
         self.action_space = spaces.Box(low=-50, high=50, shape=(1,), dtype=np.float32)
-        self.observation_space = spaces.Box(low=-np.pi, high=np.pi, shape=(2,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-np.pi, high=np.pi, shape=(3,), dtype=np.float32)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -63,13 +63,13 @@ class InvPend(gym.Env):
         self.thetatimes = []
 
     def _get_obs(self):
-        return np.array([self._theta, self._setpoint - self._theta], dtype=np.float32)
+        return np.array([self._velocity, self._theta, abs(self._setpoint - self._theta)], dtype=np.float32)
     def _get_info(self):
         return {"distance": self._theta - self._setpoint}
     def reset(self, seed=None, options=None, thval=None, vval=None):
         super().reset(seed=seed or self.seed or None)
         self._theta = thval or self.np_random.uniform(low=-np.pi/2, high=np.pi/2)
-        self._velocity = vval or 0
+        self._velocity = vval or self.np_random.uniform(low=-10, high=10)
         self.steps = 0
         observation = self._get_obs()
         info = self._get_info()
