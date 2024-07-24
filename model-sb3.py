@@ -11,11 +11,17 @@ from stable_baselines3.common.evaluation import evaluate_policy
 import inv_pend_env
 import sys
 import time
+import torch
 
 # Parallel environments
-vec_env = make_vec_env("inv_pend_env/inv_pendulum_v0", n_envs=4)
+vec_env = make_vec_env("inv_pend_env/inv_pendulum_v0", n_envs=8)
 
-model = PPO("MlpPolicy", vec_env, device="cuda")
+policy_kwargs = dict(
+    activation_fn=torch.nn.ReLU, net_arch=dict(pi=[8, 8], vf=[8, 8])
+)
+
+
+model = PPO("MlpPolicy", vec_env, device="cuda", policy_kwargs=policy_kwargs)
 
 
 def hereshwhatihavetosay():
@@ -36,7 +42,7 @@ if "train" in sys.argv:
 
     print(f"Untrained mean_reward={mean_reward:.2f} +/- {std_reward}")
 
-    model.learn(total_timesteps=int(1e7), progress_bar=True)
+    model.learn(total_timesteps=int(5e5), progress_bar=True)
     os.makedirs("checkpoints", exist_ok=True)
     model.save("checkpoints/model-sb3.pth")
 
@@ -67,7 +73,7 @@ elif "eval" in sys.argv:
         passes = 100
         env = gym.make("inv_pend_env/inv_pendulum_v0")
         thconditions = np.linspace(-np.pi / 2, np.pi / 2, passes)
-        vconditions = np.linspace(-10, 10, passes)
+        vconditions = np.linspace(-1, 1, passes)
         observation, info = env.reset(thval=thconditions[0], vval=vconditions[0])
         model = PPO.load("checkpoints/model-sb3.pth")
         timestep = 0
@@ -129,7 +135,7 @@ elif "eval" in sys.argv:
         passes = 100
         env = gym.make("inv_pend_env/inv_pendulum_v0")
         thconditions = np.linspace(-np.pi / 2, np.pi / 2, passes)
-        vconditions = np.linspace(-10, 10, passes)
+        vconditions = np.linspace(-1, 1, passes)
         observation, info = env.reset(thval=thconditions[0], vval=vconditions[0])
         model = PPO.load("checkpoints/model-sb3.pth")
         timestep = 0
@@ -191,7 +197,7 @@ elif "eval" in sys.argv:
         # Set labels and title
         plt.xlabel("Theta starting conditions")
         plt.ylabel("Velocity starting conditions")
-        plt.title("Init Force by Start Condition")
+        plt.title("Command by Start Condition")
 
         # Show the plot
         plt.show()

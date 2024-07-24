@@ -48,7 +48,7 @@ class Policy_Network(nn.Module):
             nn.Tanh(),
         )
 
-        # Policy Mean specific Linear Layer
+        # Policy Mean specxfific Linear Layer
         self.policy_mean_net = nn.Sequential(
             nn.Linear(hidden_space2, action_space_dims)
         )
@@ -179,7 +179,7 @@ env = gym.make("inv_pend_env/inv_pendulum_v0")
 
 wrapped_env = gym.wrappers.RecordEpisodeStatistics(env, 50)  # Records episode-reward
 
-total_num_episodes = int(2e6)  # Total number of episodes
+total_num_episodes = int(5e5)  # Total number of episodes
 # Observation-space of InvertedPendulum-v4 (4)
 
 obs_space_dims = env.observation_space.shape[0]
