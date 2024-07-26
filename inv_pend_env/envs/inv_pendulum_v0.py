@@ -69,7 +69,7 @@ class InvPend(gym.Env):
     def reset(self, seed=None, options=None, thval=None, vval=None):
         super().reset(seed=seed or self.seed or None)
         self._theta = thval or self.np_random.uniform(low=-np.pi/2, high=np.pi/2)
-        self._velocity = vval or 0
+        self._velocity = vval or self.np_random.uniform(low=-5, high=5)
         self.steps = 0
         observation = self._get_obs()
         info = self._get_info()

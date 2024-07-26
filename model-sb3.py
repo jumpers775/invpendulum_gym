@@ -16,12 +16,6 @@ import torch
 # Parallel environments
 vec_env = make_vec_env("inv_pend_env/inv_pendulum_v0", n_envs=8)
 
-policy_kwargs = dict(
-    activation_fn=torch.nn.ReLU, net_arch=dict(pi=[8, 8], vf=[8, 8])
-)
-
-
-model = PPO("MlpPolicy", vec_env, device="cuda", policy_kwargs=policy_kwargs)
 
 
 def hereshwhatihavetosay():
@@ -29,6 +23,17 @@ def hereshwhatihavetosay():
 
 
 if "train" in sys.argv:
+
+    if "continue" in sys.argv:
+        model = PPO.load("checkpoints/model-sb3.pth")
+        model.set_env(vec_env)
+    else:
+    #     policy_kwargs = dict(
+    #     activation_fn=torch.nn.ReLU, net_arch=dict(pi=[8, 8], vf=[8, 8])
+    # )
+
+        model = PPO("MlpPolicy", vec_env, device="mps")
+
     # Separate env for evaluation
     eval_env = gym.make("inv_pend_env/inv_pendulum_v0")
 
@@ -42,7 +47,7 @@ if "train" in sys.argv:
 
     print(f"Untrained mean_reward={mean_reward:.2f} +/- {std_reward}")
 
-    model.learn(total_timesteps=int(5e5), progress_bar=True)
+    model.learn(total_timesteps=int(1e6), progress_bar=True)
     os.makedirs("checkpoints", exist_ok=True)
     model.save("checkpoints/model-sb3.pth")
 
@@ -59,7 +64,6 @@ if "train" in sys.argv:
     print(f"Final mean_reward={mean_reward:.2f} +/- {std_reward}")
 
 elif "test" in sys.argv:
-    del model
     model = PPO.load("checkpoints/model-sb3.pth")
     for _ in range(20):
         obs = vec_env.reset()
@@ -124,6 +128,7 @@ elif "eval" in sys.argv:
         plt.xlim(min(thconditions) - width, max(thconditions) + width)
         plt.ylim(min(vconditions) - height, max(vconditions) + height)
 
+
         # Set labels and title
         plt.xlabel("Theta starting conditions")
         plt.ylabel("Velocity starting conditions")
@@ -135,7 +140,7 @@ elif "eval" in sys.argv:
         passes = 100
         env = gym.make("inv_pend_env/inv_pendulum_v0")
         thconditions = np.linspace(-np.pi / 2, np.pi / 2, passes)
-        vconditions = np.linspace(-1, 1, passes)
+        vconditions = np.linspace(-10, 10, passes)
         observation, info = env.reset(thval=thconditions[0], vval=vconditions[0])
         model = PPO.load("checkpoints/model-sb3.pth")
         timestep = 0
@@ -194,14 +199,92 @@ elif "eval" in sys.argv:
         plt.xlim(min(thconditions) - width, max(thconditions) + width)
         plt.ylim(min(vconditions) - height, max(vconditions) + height)
 
+
         # Set labels and title
         plt.xlabel("Theta starting conditions")
         plt.ylabel("Velocity starting conditions")
-        plt.title("Command by Start Condition")
+        plt.title("Command by Condition")
 
         # Show the plot
         plt.show()
     else:
         hereshwhatihavetosay()
+
+elif "verify" in sys.argv:
+    model = PPO.load("checkpoints/model-sb3.pth")
+    env = gym.make("inv_pend_env/inv_pendulum_v0")
+
+    th_staterange = [env.observation_space.low, env.observation_space.high]
+    v_staterange = [-1, 1]
+    boxinitdimensions = 10
+
+    sqsize = ((abs(th_staterange[0][0]) + abs(th_staterange[1][0]))/ (2*boxinitdimensions), (abs(v_staterange[0]) + abs(v_staterange[1]))/ (2*boxinitdimensions))
+
+    th_conditions = np.linspace(th_staterange[0][0]+sqsize[0], th_staterange[1][0]-sqsize[0], boxinitdimensions-1)
+    v_conditions = np.linspace(v_staterange[0]+sqsize[1], v_staterange[1]-sqsize[1], boxinitdimensions-1)
+    
+    quantpoints = [[i,j] for i in th_conditions for j in v_conditions]
+
+    pps = 5
+    nonquants = []
+    for i in quantpoints:
+        newentry = []
+        for j in range(4): 
+            if j ==0: #up
+                vals = np.linspace(i[0]-sqsize[0], i[0]+sqsize[0], pps)
+                for k in range(pps):
+                    newentry.append([vals[k], i[1]+sqsize[1]])
+            if j ==1: #right
+                vals = np.linspace(i[1]+sqsize[1], i[1]-sqsize[1], pps)
+                for k in range(pps):
+                    newentry.append([i[0]-sqsize[0], vals[k]])
+            if j ==2: #down
+                vals = np.linspace(i[0]+sqsize[0], i[0]-sqsize[0], pps)
+                for k in range(pps):
+                    newentry.append([vals[k], i[1]-sqsize[1]])
+            if j ==3: #left
+                vals = np.linspace(i[1]-sqsize[1], i[1]+sqsize[1], pps)
+                for k in range(pps):
+                    newentry.append([i[0]+sqsize[0], vals[k]])
+        nonquants.append(newentry)
+
+
+
+    box = 0
+
+    model = PPO.load("checkpoints/model-sb3.pth")
+    timestep = 0
+    transformedpoints = []
+    for i in range(len(nonquants[box])):
+        obs, info = env.reset(thval=nonquants[box][i][0], vval=nonquants[box][i][1])
+        action, _states = model.predict(obs)
+        obs, reward, terminated, truncated, info = env.step(action)
+        transformedpoints.append([obs[1], obs[0]])
+        
+
+    #plt scatter plot of nonquants with stateranges as ranges
+    fig, ax = plt.subplots()
+    x, y = zip(*nonquants[box])
+    ax.plot(x, y, marker='none', color="blue")
+
+
+    x, y = zip(*transformedpoints)
+    ax.plot(x, y, marker='none', color="#00FFFF")
+    ax.plot([x[0], x[-1]], [y[0], y[-1]], marker='none', color="#00FFFF")
+
+    # shade everything within the ranges green, and everything outside red
+    rect = patches.Rectangle((2*th_staterange[0][0], 2*v_staterange[0]), 2*th_staterange[1][0]-2*th_staterange[0][0], 2*v_staterange[1]-2*v_staterange[0], linewidth=1, edgecolor='none', facecolor='red')
+    rect2 = patches.Rectangle((th_staterange[0][0], v_staterange[0]), th_staterange[1][0]-th_staterange[0][0], v_staterange[1]-v_staterange[0], linewidth=1, edgecolor='none', facecolor='green')
+    # Add the rectangle to the Axes
+    ax.add_patch(rect)
+    ax.add_patch(rect2)
+    # Optionally, you can close the shape by connecting the last point to the first
+    ax.set_xlim(2*th_staterange[0][0], 2*th_staterange[1][0])
+    ax.set_ylim(2*v_staterange[0], 2*v_staterange[1])
+    plt.show()
+
+
+
+    env.close()
 else:
     hereshwhatihavetosay()
