@@ -47,7 +47,15 @@ if "train" in sys.argv:
 
     print(f"Untrained mean_reward={mean_reward:.2f} +/- {std_reward}")
 
-    model.learn(total_timesteps=int(1e6), progress_bar=True)
+    length = int(10e6)
+
+    # work around a crash that occurs when training for too long
+    lengths = [int(5e6) for i in range(0, int(length/int(5e6)))]
+    if length%int(5e6) != 0:
+        lengths.append(length%int(5e6))
+    for i in range(len(lengths)):
+        print(f"{i+1}/{len(lengths)}")
+        model.learn(total_timesteps=lengths[i], progress_bar=True)
     os.makedirs("checkpoints", exist_ok=True)
     model.save("checkpoints/model-sb3.pth")
 
@@ -274,7 +282,7 @@ elif "verify" in sys.argv:
 
     # shade everything within the ranges green, and everything outside red
     rect = patches.Rectangle((2*th_staterange[0][0], 2*v_staterange[0]), 2*th_staterange[1][0]-2*th_staterange[0][0], 2*v_staterange[1]-2*v_staterange[0], linewidth=1, edgecolor='none', facecolor='red')
-    rect2 = patches.Rectangle((th_staterange[0][0], v_staterange[0]), th_staterange[1][0]-th_staterange[0][0], v_staterange[1]-v_staterange[0], linewidth=1, edgecolor='none', facecolor='green')
+    rect2 = patches.Rectangle((th_staterange[0][0], 2*v_staterange[0]), th_staterange[1][0]-th_staterange[0][0], 2*v_staterange[1]-2*v_staterange[0], linewidth=1, edgecolor='none', facecolor='green')
     # Add the rectangle to the Axes
     ax.add_patch(rect)
     ax.add_patch(rect2)
@@ -282,8 +290,6 @@ elif "verify" in sys.argv:
     ax.set_xlim(2*th_staterange[0][0], 2*th_staterange[1][0])
     ax.set_ylim(2*v_staterange[0], 2*v_staterange[1])
     plt.show()
-
-
 
     env.close()
 else:
