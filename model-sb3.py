@@ -56,8 +56,14 @@ if "train" in sys.argv:
     for i in range(len(lengths)):
         print(f"{i+1}/{len(lengths)}")
         model.learn(total_timesteps=lengths[i], progress_bar=True)
-    os.makedirs("checkpoints", exist_ok=True)
-    model.save("checkpoints/model-sb3.pth")
+
+        # work around memory leak
+        os.makedirs("checkpoints", exist_ok=True)
+        model.save("checkpoints/model-sb3.pth")
+        del model
+        model = PPO.load("checkpoints/model-sb3.pth")
+        model.set_env(vec_env)
+
 
     eval_env = gym.make("inv_pend_env/inv_pendulum_v0")
 
@@ -219,6 +225,9 @@ elif "eval" in sys.argv:
         hereshwhatihavetosay()
 
 elif "verify" in sys.argv:
+
+    quant = "quant" in sys.argv
+
     model = PPO.load("checkpoints/model-sb3.pth")
     env = gym.make("inv_pend_env/inv_pendulum_v0")
 
@@ -258,27 +267,28 @@ elif "verify" in sys.argv:
 
 
 
-    box = 0
 
     model = PPO.load("checkpoints/model-sb3.pth")
     timestep = 0
     transformedpoints = []
-    for i in range(len(nonquants[box])):
-        obs, info = env.reset(thval=nonquants[box][i][0], vval=nonquants[box][i][1])
-        action, _states = model.predict(obs)
-        obs, reward, terminated, truncated, info = env.step(action)
-        transformedpoints.append([obs[1], obs[0]])
+
+    if not quant:
+        box = 0
+        for i in range(len(nonquants[box])):
+            obs, info = env.reset(thval=nonquants[box][i][0], vval=nonquants[box][i][1])
+            action, _states = model.predict(obs)
+            obs, reward, terminated, truncated, info = env.step(action)
+            transformedpoints.append([obs[1], obs[0]])
+    else:
+        for i in range(len(quantpoints)):
+            obs, info = env.reset(thval=quantpoints[i][0], vval=quantpoints[i][1])
+            action, _states = model.predict(obs)
+            obs, reward, terminated, truncated, info = env.step(action)
+            transformedpoints.append([obs[1], obs[0]])
         
 
     #plt scatter plot of nonquants with stateranges as ranges
     fig, ax = plt.subplots()
-    x, y = zip(*nonquants[box])
-    ax.plot(x, y, marker='none', color="blue")
-
-
-    x, y = zip(*transformedpoints)
-    ax.plot(x, y, marker='none', color="#00FFFF")
-    ax.plot([x[0], x[-1]], [y[0], y[-1]], marker='none', color="#00FFFF")
 
     # shade everything within the ranges green, and everything outside red
     rect = patches.Rectangle((2*th_staterange[0][0], 2*v_staterange[0]), 2*th_staterange[1][0]-2*th_staterange[0][0], 2*v_staterange[1]-2*v_staterange[0], linewidth=1, edgecolor='none', facecolor='red')
@@ -286,6 +296,39 @@ elif "verify" in sys.argv:
     # Add the rectangle to the Axes
     ax.add_patch(rect)
     ax.add_patch(rect2)
+
+    if not quant:
+        x, y = zip(*nonquants[box])
+        ax.plot(x, y, marker='none', color="blue")
+        
+        x, y = zip(*transformedpoints)
+        ax.plot(x, y, marker='none', color="#00FFFF")
+        ax.plot([x[0], x[-1]], [y[0], y[-1]], marker='none', color="#00FFFF")
+
+    else:
+        
+        qx, qy = zip(*quantpoints)
+        tx, ty = zip(*transformedpoints)
+        ax.scatter(qx, qy, color='blue', s=10)
+        ax.scatter(tx, ty, color='white', s=10)
+        for (qx_i, qy_i), (tx_i, ty_i) in zip(quantpoints, transformedpoints):
+            ax.plot([qx_i, tx_i], [qy_i, ty_i], color='black')
+            # Calculate the midpoint
+            mid_x = (qx_i + tx_i) / 2
+            mid_y = (qy_i + ty_i) / 2
+
+            # Calculate the direction of the arrow
+            dx = (tx_i - qx_i) / 2
+            dy = (ty_i - qy_i) / 2
+
+            # Plot the arrow at the midpoint
+            arrow = patches.FancyArrowPatch((mid_x, mid_y), (mid_x + dx / 2, mid_y + dy / 2),
+                                            arrowstyle='->', mutation_scale=10, color='black')
+            # Add the arrow to the plot
+            ax.add_patch(arrow)
+
+
+
     # Optionally, you can close the shape by connecting the last point to the first
     ax.set_xlim(2*th_staterange[0][0], 2*th_staterange[1][0])
     ax.set_ylim(2*v_staterange[0], 2*v_staterange[1])
