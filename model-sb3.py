@@ -17,6 +17,17 @@ import torch
 vec_env = make_vec_env("inv_pend_env/inv_pendulum_v0", n_envs=8)
 
 
+def find_closest_match(small_list, big_list):
+    min_distance = float('inf')
+    closest_match = None
+    
+    for entry in big_list:
+        distance = np.linalg.norm(np.array(small_list) - np.array(entry))
+        if distance < min_distance:
+            min_distance = distance
+            closest_match = entry
+    
+    return closest_match
 
 def hereshwhatihavetosay():
     print("Please provide train, test, or eval (success or initforce) as arguments")
@@ -87,16 +98,28 @@ elif "test" in sys.argv:
             obs, rewards, dones, info = vec_env.step(action)
             vec_env.render("human")
 elif "eval" in sys.argv:
+    env = gym.make("inv_pend_env/inv_pendulum_v0")
+    quant = "quant" in sys.argv
+    th_staterange = [env.observation_space.low, env.observation_space.high]
+    v_staterange = [-1, 1]
+    boxinitdimensions = 10
+
+    sqsize = ((abs(th_staterange[0][0]) + abs(th_staterange[1][0]))/ (2*boxinitdimensions), (abs(v_staterange[0]) + abs(v_staterange[1]))/ (2*boxinitdimensions))
+
+    th_conditions = np.linspace(th_staterange[0][0]+sqsize[0], th_staterange[1][0]-sqsize[0], boxinitdimensions-1)
+    v_conditions = np.linspace(v_staterange[0]+sqsize[1], v_staterange[1]-sqsize[1], boxinitdimensions-1)
+    
+    quantpoints = [[i,j] for i in th_conditions for j in v_conditions]
+
     if "success" in sys.argv:
         passes = 100
-        env = gym.make("inv_pend_env/inv_pendulum_v0")
         thconditions = np.linspace(-np.pi / 2, np.pi / 2, passes)
         vconditions = np.linspace(-1, 1, passes)
         observation, info = env.reset(thval=thconditions[0], vval=vconditions[0])
         model = PPO.load("checkpoints/model-sb3.pth")
         timestep = 0
         starts = []
-
+        
         for i in range(0, passes):
             starts.append([])
             for j in range(0, passes):
@@ -105,10 +128,14 @@ elif "eval" in sys.argv:
                 npasses = 0
                 obs, info = env.reset(thval=thconditions[i], vval=vconditions[j])
                 timestep = 0
+                if quant:
+                    obs = find_closest_match(obs, quantpoints)
                 action, _states = model.predict(obs)
                 while not terminated and not truncated:
                     npasses += 1
                     obs, reward, terminated, truncated, info = env.step(action)
+                    if quant:
+                        obs = find_closest_match(obs, quantpoints)
                     action, _states = model.predict(obs)
                     if terminated or truncated:
                         starts[-1].append(npasses == 200)
@@ -167,6 +194,8 @@ elif "eval" in sys.argv:
                 truncated = False
                 npasses = 0
                 obs, info = env.reset(thval=thconditions[i], vval=vconditions[j])
+                if quant:
+                    obs = find_closest_match(obs, quantpoints)
                 timestep = 0
                 action, _states = model.predict(obs)
                 starts[-1].append(action)
@@ -242,7 +271,7 @@ elif "verify" in sys.argv:
     
     quantpoints = [[i,j] for i in th_conditions for j in v_conditions]
 
-    pps = 5
+    pps = 500
     nonquants = []
     for i in quantpoints:
         newentry = []
@@ -271,18 +300,19 @@ elif "verify" in sys.argv:
     model = PPO.load("checkpoints/model-sb3.pth")
     timestep = 0
     transformedpoints = []
+    box = 0
 
     if not quant:
-        box = 0
         for i in range(len(nonquants[box])):
             obs, info = env.reset(thval=nonquants[box][i][0], vval=nonquants[box][i][1])
             action, _states = model.predict(obs)
             obs, reward, terminated, truncated, info = env.step(action)
             transformedpoints.append([obs[1], obs[0]])
     else:
-        for i in range(len(quantpoints)):
-            obs, info = env.reset(thval=quantpoints[i][0], vval=quantpoints[i][1])
-            action, _states = model.predict(obs)
+        obs, info = env.reset(thval=quantpoints[box][0], vval=quantpoints[box][1])
+        action, _states = model.predict(obs)
+        for i in range(len(nonquants[box])):
+            obs, info = env.reset(thval=nonquants[box][i][0], vval=nonquants[box][i][1])
             obs, reward, terminated, truncated, info = env.step(action)
             transformedpoints.append([obs[1], obs[0]])
         
@@ -297,16 +327,22 @@ elif "verify" in sys.argv:
     ax.add_patch(rect)
     ax.add_patch(rect2)
 
-    if not quant:
+
+    if not quant or True: # this is the correct code to run. The other code demonstrates something interesting, but irelevant.
         x, y = zip(*nonquants[box])
         ax.plot(x, y, marker='none', color="blue")
         
-        x, y = zip(*transformedpoints)
+        import scipy.spatial
+
+        # Perform convex hull algorithm
+        hull = scipy.spatial.ConvexHull(transformedpoints)
+        convex_points = [transformedpoints[i] for i in hull.vertices]
+
+        x, y = zip(*convex_points)
         ax.plot(x, y, marker='none', color="#00FFFF")
         ax.plot([x[0], x[-1]], [y[0], y[-1]], marker='none', color="#00FFFF")
 
     else:
-        
         qx, qy = zip(*quantpoints)
         tx, ty = zip(*transformedpoints)
         ax.scatter(qx, qy, color='blue', s=10)
