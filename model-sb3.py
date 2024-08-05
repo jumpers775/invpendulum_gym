@@ -18,6 +18,38 @@ import scipy.spatial
 # Parallel environments
 vec_env = make_vec_env("inv_pend_env/inv_pendulum_v0", n_envs=8)
 
+class PIDController:
+    def __init__(self, setpoint=0, kp=15, ki=0, kd=5, dt=1):
+        self.controlhistory = []
+        self.integral = 0
+        self.previous_error = 0
+        self.setpoint = setpoint
+        self.kp = kp 
+        self.ki = ki
+        self.kd = kd 
+        self.dt = dt
+
+    def control(self, y):
+        error = self.setpoint - y
+    
+        # Update integral term with anti-windup
+        self.integral += error * self.dt
+        if self.ki != 0:
+            self.integral = max(-1 / self.ki, min(1 / self.ki, self.integral))
+    
+        # Calculate derivative term
+        derivative = (error - self.previous_error) / self.dt if self.dt != 0 else 0
+    
+        # Update previous error
+        self.previous_error = error
+    
+        # Calculate control output
+        u = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
+    
+        # Append control output to history
+        self.controlhistory.append(u)
+    
+        return u
 
 def find_closest_match(small_list, big_list):
     min_distance = float('inf')
@@ -306,17 +338,28 @@ elif "verify" in sys.argv:
     transformedpoints = []
     box = random.randint(0, len(quantpoints)-1)
 
+    pid = "pid" in sys.argv
+    if pid:
+        controller = PIDController(0, 400, 0, 500)
+
+
     for j in range(len(nonquants)):
         transformedpoints.append([])
         if not quant:
             for i in range(len(nonquants[j])):
                 obs, info = env.reset(thval=nonquants[j][i][0], vval=nonquants[j][i][1])
-                action, _states = model.predict(obs)
+                if not pid:
+                    action, _states = model.predict(obs)
+                else:
+                    action = [controller.control(obs[1])]
                 obs, reward, terminated, truncated, info = env.step(action)
                 transformedpoints[-1].append([obs[1], obs[0]])
         else:
             obs, info = env.reset(thval=quantpoints[j][0], vval=quantpoints[j][1])
-            action, _states = model.predict(obs)
+            if not pid:
+                action, _states = model.predict(obs)
+            else:
+                action = [controller.control(obs[1])]
             for i in range(len(nonquants[j])):
                 obs, info = env.reset(thval=nonquants[j][i][0], vval=nonquants[j][i][1])
                 obs, reward, terminated, truncated, info = env.step(action)
@@ -348,6 +391,11 @@ elif "verify" in sys.argv:
         # Optionally, you can close the shape by connecting the last point to the first
         ax.set_xlim(2*th_staterange[0][0], 2*th_staterange[1][0])
         ax.set_ylim(2*v_staterange[0], 2*v_staterange[1])
+        # label
+        plt.xlabel("Theta starting conditions")
+        plt.ylabel("Velocity starting conditions")
+        plt.title("Box Representation of Verification of Model")
+
         plt.show()
     else:
         states = [True for i in range(len(transformedpoints))]
@@ -391,6 +439,12 @@ elif "verify" in sys.argv:
         # Set the limits of the plot to the min and max of the conditions
         plt.xlim(th_staterange[0][0], th_staterange[1][0])
         plt.ylim(v_staterange[0], v_staterange[1])
+
+        #label the plot
+        plt.xlabel("Theta starting conditions")
+        plt.ylabel("Velocity starting conditions")
+        plt.title("Geometry based Verification of Model")
+
         # Show the plot
         plt.show()
 
