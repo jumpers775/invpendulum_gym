@@ -341,8 +341,8 @@ elif "verify" in sys.argv:
     env = gym.make("inv_pend_env/inv_pendulum_v0")
     th_staterange = [env.observation_space.low, env.observation_space.high]
     v_staterange = [-1, 1]
-    boxinitdimensions = 50
-    pps = 5
+    boxinitdimensions = 100
+    pps = 10
     if "center" in sys.argv:
         sys.argv.append("box")
     sqsize = ((abs(th_staterange[0][0]) + abs(th_staterange[1][0]))/ (2*boxinitdimensions), (abs(v_staterange[0]) + abs(v_staterange[1]))/ (2*boxinitdimensions))
@@ -385,6 +385,7 @@ elif "verify" in sys.argv:
     timestep = 0
     transformedpoints = []
     box = random.randint(0, len(quantpoints)-1)
+    box = 4
 
     pid = "pid" in sys.argv
     if pid:
@@ -445,7 +446,7 @@ elif "verify" in sys.argv:
         # label
         plt.xlabel("Theta starting conditions")
         plt.ylabel("Velocity starting conditions")
-        plt.title("Controller 1-step Reachability ")
+        plt.title(f"{'PID' if pid else 'Quantized Neural Network' if quant else 'Non-Quantized Neural Network'} Controller 1-step Reachability ")
         plt.savefig("Controller 1-step Reachability.pdf") 
         plt.show()
     else:
@@ -461,17 +462,11 @@ elif "verify" in sys.argv:
             return True
         laststates = []
         start = True
-        start = True
 
         # Run the loop while states are changing or it's the first iteration
         while start or any(a != b for a, b in zip(states, laststates)):
             start = False
-        # Run the loop while states are changing or it's the first iteration
-        while start or any(a != b for a, b in zip(states, laststates)):
-            start = False
             laststates = states.copy()
-            
-            
             for i in range(len(states)):
                 if states[i]:  # Only check if the current state is True
                     states[i] = all(verifypoint(transformedpoints[i][j], states, boxranges, "onestep" in sys.argv) 
@@ -509,7 +504,7 @@ elif "verify" in sys.argv:
         #label the plot
         plt.xlabel("Theta starting conditions")
         plt.ylabel("Velocity starting conditions")
-        plt.title(f"Geometry Based Verification of {'Quantized' if quant else 'Non-Quantized'} {'PID' if pid else 'Neural Networ'} Controller")
+        plt.title(f"Infinite time reachability of {'Quantized' if quant else 'Non-Quantized'} {'PID' if pid else 'Neural Network'} Controller")
 
         # add a legend saying green is safe and red is unsafe
         import matplotlib.patches as mpatches
