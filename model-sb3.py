@@ -12,6 +12,8 @@ import inv_pend_env
 import sys
 import time
 import torch
+import random
+import scipy.spatial
 
 # Parallel environments
 vec_env = make_vec_env("inv_pend_env/inv_pendulum_v0", n_envs=8)
@@ -263,6 +265,7 @@ elif "verify" in sys.argv:
     th_staterange = [env.observation_space.low, env.observation_space.high]
     v_staterange = [-1, 1]
     boxinitdimensions = 10
+    pps = 5
 
     sqsize = ((abs(th_staterange[0][0]) + abs(th_staterange[1][0]))/ (2*boxinitdimensions), (abs(v_staterange[0]) + abs(v_staterange[1]))/ (2*boxinitdimensions))
 
@@ -270,8 +273,9 @@ elif "verify" in sys.argv:
     v_conditions = np.linspace(v_staterange[0]+sqsize[1], v_staterange[1]-sqsize[1], boxinitdimensions-1)
     
     quantpoints = [[i,j] for i in th_conditions for j in v_conditions]
+    boxranges = [[[i[0]-sqsize[0],i[0]+sqsize[0]],[i[1]-sqsize[1],i[1]+sqsize[1]]] for i in quantpoints]
 
-    pps = 500
+
     nonquants = []
     for i in quantpoints:
         newentry = []
@@ -300,54 +304,102 @@ elif "verify" in sys.argv:
     model = PPO.load("checkpoints/model-sb3.pth")
     timestep = 0
     transformedpoints = []
-    box = 0
+    box = random.randint(0, len(quantpoints)-1)
 
-    if not quant:
-        for i in range(len(nonquants[box])):
-            obs, info = env.reset(thval=nonquants[box][i][0], vval=nonquants[box][i][1])
+    for j in range(len(nonquants)):
+        transformedpoints.append([])
+        if not quant:
+            for i in range(len(nonquants[j])):
+                obs, info = env.reset(thval=nonquants[j][i][0], vval=nonquants[j][i][1])
+                action, _states = model.predict(obs)
+                obs, reward, terminated, truncated, info = env.step(action)
+                transformedpoints[-1].append([obs[1], obs[0]])
+        else:
+            obs, info = env.reset(thval=quantpoints[j][0], vval=quantpoints[j][1])
             action, _states = model.predict(obs)
-            obs, reward, terminated, truncated, info = env.step(action)
-            transformedpoints.append([obs[1], obs[0]])
-    else:
-        obs, info = env.reset(thval=quantpoints[box][0], vval=quantpoints[box][1])
-        action, _states = model.predict(obs)
-        for i in range(len(nonquants[box])):
-            obs, info = env.reset(thval=nonquants[box][i][0], vval=nonquants[box][i][1])
-            obs, reward, terminated, truncated, info = env.step(action)
-            transformedpoints.append([obs[1], obs[0]])
+            for i in range(len(nonquants[j])):
+                obs, info = env.reset(thval=nonquants[j][i][0], vval=nonquants[j][i][1])
+                obs, reward, terminated, truncated, info = env.step(action)
+                transformedpoints[-1].append([obs[1], obs[0]])
         
+    if "box" in sys.argv:
+        #plt scatter plot of nonquants with stateranges as ranges
+        fig, ax = plt.subplots()
 
-    #plt scatter plot of nonquants with stateranges as ranges
-    fig, ax = plt.subplots()
-
-    # shade everything within the ranges green, and everything outside red
-    rect = patches.Rectangle((2*th_staterange[0][0], 2*v_staterange[0]), 2*th_staterange[1][0]-2*th_staterange[0][0], 2*v_staterange[1]-2*v_staterange[0], linewidth=1, edgecolor='none', facecolor='red')
-    rect2 = patches.Rectangle((th_staterange[0][0], 2*v_staterange[0]), th_staterange[1][0]-th_staterange[0][0], 2*v_staterange[1]-2*v_staterange[0], linewidth=1, edgecolor='none', facecolor='green')
-    # Add the rectangle to the Axes
-    ax.add_patch(rect)
-    ax.add_patch(rect2)
+        # shade everything within the ranges green, and everything outside red
+        rect = patches.Rectangle((2*th_staterange[0][0], 2*v_staterange[0]), 2*th_staterange[1][0]-2*th_staterange[0][0], 2*v_staterange[1]-2*v_staterange[0], linewidth=1, edgecolor='none', facecolor='red')
+        rect2 = patches.Rectangle((th_staterange[0][0], 2*v_staterange[0]), th_staterange[1][0]-th_staterange[0][0], 2*v_staterange[1]-2*v_staterange[0], linewidth=1, edgecolor='none', facecolor='green')
+        # Add the rectangle to the Axes
+        ax.add_patch(rect)
+        ax.add_patch(rect2)
 
 
-    if not quant or True: # this is the correct code to run. The other code demonstrates something interesting, but irelevant.
         x, y = zip(*nonquants[box])
         ax.plot(x, y, marker='none', color="blue")
         
-        import scipy.spatial
 
         # Perform convex hull algorithm
-        hull = scipy.spatial.ConvexHull(transformedpoints)
-        convex_points = [transformedpoints[i] for i in hull.vertices]
+        hull = scipy.spatial.ConvexHull(transformedpoints[box])
+        convex_points = [transformedpoints[box][i] for i in hull.vertices]
 
         x, y = zip(*convex_points)
         ax.plot(x, y, marker='none', color="#00FFFF")
         ax.plot([x[0], x[-1]], [y[0], y[-1]], marker='none', color="#00FFFF")
-
+        # Optionally, you can close the shape by connecting the last point to the first
+        ax.set_xlim(2*th_staterange[0][0], 2*th_staterange[1][0])
+        ax.set_ylim(2*v_staterange[0], 2*v_staterange[1])
+        plt.show()
     else:
+        states = [True for i in range(len(transformedpoints))]
+        def verifypoint(point, states, ranges):
+            if point[0] < -np.pi/2 or point[0] > np.pi/2:
+                return False
+            for i in range(len(states)):
+                if states[i] == False:
+                    if point[0] > ranges[i][0][0] and point[0] < ranges[i][0][1] and point[1] > ranges[i][1][0] and point[1] < ranges[i][1][1]:
+                        return False
+            return True        
+        laststates = []
+
+        while False not in [a == b for a, b in zip(states, laststates)]:
+            laststates = states.copy()
+            for i in range(len(states)):
+                states[i] = False not in [verifypoint(transformedpoints[i][j], states, boxranges) for j in range(len(transformedpoints[i])) if states[i] == True]
+        
+        fig, ax = plt.subplots()
+
+        # Calculate width and height for rectangles based on the conditions' spacing
+        width = 2.2*sqsize[0] 
+        height = 2.2*sqsize[1]
+
+        # Iterate over each condition pair and plot a rectangle for each
+        for i in range(len(states)):
+            color = "green" if states[i] else "red"
+            # Create a rectangle patch
+            rect = patches.Rectangle(
+                (boxranges[i][0][0],boxranges[i][1][0] ),
+                width,
+                height,
+                linewidth=1,
+                edgecolor="none",
+                facecolor=color,
+            )
+            # Add the rectangle to the Axes
+            ax.add_patch(rect)
+
+        # label this
+        # Set the limits of the plot to the min and max of the conditions
+        plt.xlim(th_staterange[0][0], th_staterange[1][0])
+        plt.ylim(v_staterange[0], v_staterange[1])
+        # Show the plot
+        plt.show()
+
+    if False: # generates a chart of one-step directions. Interesting, but not needed.
         qx, qy = zip(*quantpoints)
-        tx, ty = zip(*transformedpoints)
+        tx, ty = zip(*transformedpoints[box])
         ax.scatter(qx, qy, color='blue', s=10)
         ax.scatter(tx, ty, color='white', s=10)
-        for (qx_i, qy_i), (tx_i, ty_i) in zip(quantpoints, transformedpoints):
+        for (qx_i, qy_i), (tx_i, ty_i) in zip(quantpoints, transformedpoints[box]):
             ax.plot([qx_i, tx_i], [qy_i, ty_i], color='black')
             # Calculate the midpoint
             mid_x = (qx_i + tx_i) / 2
@@ -363,12 +415,11 @@ elif "verify" in sys.argv:
             # Add the arrow to the plot
             ax.add_patch(arrow)
 
+            # Optionally, you can close the shape by connecting the last point to the first
+            ax.set_xlim(2*th_staterange[0][0], 2*th_staterange[1][0])
+            ax.set_ylim(2*v_staterange[0], 2*v_staterange[1])
+            plt.show()
 
-
-    # Optionally, you can close the shape by connecting the last point to the first
-    ax.set_xlim(2*th_staterange[0][0], 2*th_staterange[1][0])
-    ax.set_ylim(2*v_staterange[0], 2*v_staterange[1])
-    plt.show()
 
     env.close()
 else:
