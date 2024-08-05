@@ -3,3 +3,4 @@ checkpoints/*
 graphs/*
 __pycache__/*
 inv_pend_env/envs/__pycache__
+*.pdf

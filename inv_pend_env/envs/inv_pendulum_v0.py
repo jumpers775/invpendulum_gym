@@ -68,8 +68,8 @@ class InvPend(gym.Env):
         return {"distance": self._theta - self._setpoint}
     def reset(self, seed=None, options=None, thval=None, vval=None):
         super().reset(seed=seed or self.seed or None)
-        self._theta = thval or self.np_random.uniform(low=-np.pi/2, high=np.pi/2)
-        self._velocity = vval or self.np_random.uniform(low=-5, high=5)
+        self._theta = self.np_random.uniform(low=-np.pi/2, high=np.pi/2) if thval is  None else thval
+        self._velocity = self.np_random.uniform(low=-5, high=5) if vval is None else vval
         self.steps = 0
         observation = self._get_obs()
         info = self._get_info()
