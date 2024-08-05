@@ -12,6 +12,8 @@ import inv_pend_env
 import sys
 import time
 import torch
+import random
+import scipy.spatial
 
 
 
@@ -52,7 +54,43 @@ class PIDController:
 # Parallel environments
 vec_env = make_vec_env("inv_pend_env/inv_pendulum_v0", n_envs=8)
 
+class PIDController:
+    def __init__(self, setpoint=0, kp=15, ki=0, kd=5, dt=1):
+        self.controlhistory = []
+        self.integral = 0
+        self.previous_error = 0
+        self.setpoint = setpoint
+        self.kp = kp 
+        self.ki = ki
+        self.kd = kd 
+        self.dt = dt
 
+    def control(self, inputs):
+            vel, theta = inputs
+            error_vel = 0 - vel  # Assuming the target velocity is 0
+            error_theta = self.setpoint - theta
+        
+            # Combine errors (you might want to weigh them differently)
+            error = error_vel + error_theta
+        
+            # Update integral term with anti-windup
+            self.integral += error * self.dt
+            if self.ki != 0:
+                self.integral = max(-1 / self.ki, min(1 / self.ki, self.integral))
+        
+            # Calculate derivative term
+            derivative = (error - self.previous_error) / self.dt if self.dt != 0 else 0
+        
+            # Update previous error
+            self.previous_error = error
+        
+            # Calculate control output
+            u = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
+        
+            # Append control output to history
+            self.controlhistory.append(u)
+        
+            return u
 def find_closest_match(small_list, big_list):
     min_distance = float('inf')
     closest_match = None
@@ -220,6 +258,7 @@ elif "eval" in sys.argv:
         plt.xlabel("Theta starting conditions")
         plt.ylabel("Velocity starting conditions")
         plt.title("Success by Start Condition")
+        plt.savefig("Success by Start Condition.png") 
 
         # Show the plot
         plt.show()
@@ -233,6 +272,10 @@ elif "eval" in sys.argv:
         timestep = 0
         starts = []
 
+
+        pid = "pid" in sys.argv
+        controller = PIDController()
+
         for i in range(0, passes):
             starts.append([])
             for j in range(0, passes):
@@ -243,7 +286,10 @@ elif "eval" in sys.argv:
                 if quant:
                     obs = find_closest_match(obs, quantpoints)
                 timestep = 0
-                action, _states = model.predict(obs)
+                if not pid:
+                    action, _states = model.predict(obs)
+                else:
+                    action = [controller.control(obs)]
                 starts[-1].append(action)
                 timestep += 1
 
@@ -295,6 +341,8 @@ elif "eval" in sys.argv:
         plt.title("Command by Condition")
 
         # Show the plot
+        plt.savefig("Command by Condition.png") 
+
         plt.show()
     else:
         hereshwhatihavetosay()
@@ -308,7 +356,7 @@ elif "verify" in sys.argv:
 
     th_staterange = [env.observation_space.low, env.observation_space.high]
     v_staterange = [-1, 1]
-    boxinitdimensions = 10
+    boxinitdimensions = 20
     pps = 5
 
     sqsize = ((abs(th_staterange[0][0]) + abs(th_staterange[1][0]))/ (2*boxinitdimensions), (abs(v_staterange[0]) + abs(v_staterange[1]))/ (2*boxinitdimensions))
@@ -350,28 +398,32 @@ elif "verify" in sys.argv:
     transformedpoints = []
     box = random.randint(0, len(quantpoints)-1)
 
-    PID = "pid" in sys.argv
-    if PID:
-        controller = PIDController()
-    if not quant:
-        for i in range(len(nonquants[box])):
-            obs, info = env.reset(thval=nonquants[box][i][0], vval=nonquants[box][i][1])
-            if not PID:
+    pid = "pid" in sys.argv
+    if pid:
+        controller = PIDController(0, 400, 0, 500)
+
+
+    for j in range(len(nonquants)):
+        transformedpoints.append([])
+        if not quant:
+            for i in range(len(nonquants[j])):
+                obs, info = env.reset(thval=nonquants[j][i][0], vval=nonquants[j][i][1])
+                if not pid:
+                    action, _states = model.predict(obs)
+                else:
+                    action = [controller.control(obs)]
+                obs, reward, terminated, truncated, info = env.step(action)
+                transformedpoints[-1].append([obs[1], obs[0]])
+        else:
+            obs, info = env.reset(thval=quantpoints[j][0], vval=quantpoints[j][1])
+            if not pid:
                 action, _states = model.predict(obs)
             else:
-                action = [controller.control(obs[1])]
-            obs, reward, terminated, truncated, info = env.step(action)
-            transformedpoints.append([obs[1], obs[0]])
-    else:
-        obs, info = env.reset(thval=quantpoints[box][0], vval=quantpoints[box][1])
-        if not PID:
-            action, _states = model.predict(obs)
-        else:
-            action = [controller.control(obs[1])]
-        for i in range(len(nonquants[box])):
-            obs, info = env.reset(thval=nonquants[box][i][0], vval=nonquants[box][i][1])
-            obs, reward, terminated, truncated, info = env.step(action)
-            transformedpoints.append([obs[1], obs[0]])
+                action = [controller.control(obs)]
+            for i in range(len(nonquants[j])):
+                obs, info = env.reset(thval=nonquants[j][i][0], vval=nonquants[j][i][1])
+                obs, reward, terminated, truncated, info = env.step(action)
+                transformedpoints[-1].append([obs[1], obs[0]])
         
     if "box" in sys.argv:
         #plt scatter plot of nonquants with stateranges as ranges
@@ -399,29 +451,41 @@ elif "verify" in sys.argv:
         # Optionally, you can close the shape by connecting the last point to the first
         ax.set_xlim(2*th_staterange[0][0], 2*th_staterange[1][0])
         ax.set_ylim(2*v_staterange[0], 2*v_staterange[1])
+        # label
+        plt.xlabel("Theta starting conditions")
+        plt.ylabel("Velocity starting conditions")
+        plt.title("Box Representation of Verification of Model")
+        plt.savefig("Box Representation of Verification of Model.png") 
         plt.show()
     else:
         states = [True for i in range(len(transformedpoints))]
         def verifypoint(point, states, ranges):
             if point[0] < -np.pi/2 or point[0] > np.pi/2:
                 return False
-            for i in range(len(states)):
-                if states[i] == False:
-                    if point[0] > ranges[i][0][0] and point[0] < ranges[i][0][1] and point[1] > ranges[i][1][0] and point[1] < ranges[i][1][1]:
+            for k in range(len(states)):
+                if states[k] == False:
+                    if point[0] > ranges[k][0][0] and point[0] < ranges[k][0][1] and point[1] > ranges[k][1][0] and point[1] < ranges[k][1][1]:
                         return False
-            return True        
+            return True
         laststates = []
+        start = True
 
-        while False not in [a == b for a, b in zip(states, laststates)]:
+        # Run the loop while states are changing or it's the first iteration
+        while start or any(a != b for a, b in zip(states, laststates)):
+            start = False
             laststates = states.copy()
+            
             for i in range(len(states)):
-                states[i] = False not in [verifypoint(transformedpoints[i][j], states, boxranges) for j in range(len(transformedpoints[i])) if states[i] == True]
+                if states[i]:  # Only check if the current state is True
+                    states[i] = all(verifypoint(transformedpoints[i][j], states, boxranges) 
+                                    for j in range(len(transformedpoints[i])))
+
         
         fig, ax = plt.subplots()
 
         # Calculate width and height for rectangles based on the conditions' spacing
-        width = 2.2*sqsize[0] 
-        height = 2.2*sqsize[1]
+        width = 2.4*sqsize[0] 
+        height = 2.4*sqsize[1]
 
         # Iterate over each condition pair and plot a rectangle for each
         for i in range(len(states)):
@@ -442,7 +506,14 @@ elif "verify" in sys.argv:
         # Set the limits of the plot to the min and max of the conditions
         plt.xlim(th_staterange[0][0], th_staterange[1][0])
         plt.ylim(v_staterange[0], v_staterange[1])
+
+        #label the plot
+        plt.xlabel("Theta starting conditions")
+        plt.ylabel("Velocity starting conditions")
+        plt.title("Geometry based Verification of Model")
+
         # Show the plot
+        plt.savefig("Geometry based Verification of Model.png") 
         plt.show()
 
     if False: # generates a chart of one-step directions. Interesting, but not needed.
