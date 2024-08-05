@@ -58,6 +58,46 @@ class PIDController:
 # Parallel environments
 vec_env = make_vec_env("inv_pend_env/inv_pendulum_v0", n_envs=8)
 
+<<<<<<< HEAD
+=======
+class PIDController:
+    def __init__(self, setpoint=0, kp=15, ki=0, kd=5, dt=1):
+        self.controlhistory = []
+        self.integral = 0
+        self.previous_error = 0
+        self.setpoint = setpoint
+        self.kp = kp 
+        self.ki = ki
+        self.kd = kd 
+        self.dt = dt
+
+    def control(self, inputs):
+            vel, theta = inputs
+            error_vel = 0 - vel  # Assuming the target velocity is 0
+            error_theta = self.setpoint - theta
+        
+            # Combine errors (you might want to weigh them differently)
+            error = error_vel + error_theta
+        
+            # Update integral term with anti-windup
+            self.integral += error * self.dt
+            if self.ki != 0:
+                self.integral = max(-1 / self.ki, min(1 / self.ki, self.integral))
+        
+            # Calculate derivative term
+            derivative = (error - self.previous_error) / self.dt if self.dt != 0 else 0
+        
+            # Update previous error
+            self.previous_error = error
+        
+            # Calculate control output
+            u = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
+        
+            # Append control output to history
+            self.controlhistory.append(u)
+        
+            return u
+>>>>>>> e658a046474c1f60ac0ba7a65392ba5340c39aa0
 def find_closest_match(small_list, big_list):
     min_distance = float('inf')
     closest_match = None
@@ -226,7 +266,11 @@ elif "eval" in sys.argv:
         plt.xlabel("Theta starting conditions")
         plt.ylabel("Velocity starting conditions")
         plt.title("Success by Start Condition")
+<<<<<<< HEAD
         plt.savefig("Success by Start Condition.pdf") 
+=======
+        plt.savefig("Success by Start Condition.png") 
+>>>>>>> e658a046474c1f60ac0ba7a65392ba5340c39aa0
 
         # Show the plot
         plt.show()
@@ -318,7 +362,12 @@ elif "eval" in sys.argv:
         cbar.set_label('Value Range')
 
         # Show the plot
+<<<<<<< HEAD
         plt.savefig("Command by Condition.pdf") 
+=======
+        plt.savefig("Command by Condition.png") 
+
+>>>>>>> e658a046474c1f60ac0ba7a65392ba5340c39aa0
         plt.show()
     else:
         hereshwhatihavetosay()
@@ -331,7 +380,11 @@ elif "verify" in sys.argv:
     env = gym.make("inv_pend_env/inv_pendulum_v0")
     th_staterange = [env.observation_space.low, env.observation_space.high]
     v_staterange = [-1, 1]
+<<<<<<< HEAD
     boxinitdimensions = 50
+=======
+    boxinitdimensions = 20
+>>>>>>> e658a046474c1f60ac0ba7a65392ba5340c39aa0
     pps = 5
     if "center" in sys.argv:
         sys.argv.append("box")
@@ -381,12 +434,20 @@ elif "verify" in sys.argv:
         controller = PIDController(0, 400, 0, 500)
 
 
+<<<<<<< HEAD
 
     for j,boxes in enumerate(nonquants):
         transformedpoints.append([])
         if not quant:
             for point in boxes:
                 obs, info = env.reset(thval=point[0], vval=point[1])
+=======
+    for j in range(len(nonquants)):
+        transformedpoints.append([])
+        if not quant:
+            for i in range(len(nonquants[j])):
+                obs, info = env.reset(thval=nonquants[j][i][0], vval=nonquants[j][i][1])
+>>>>>>> e658a046474c1f60ac0ba7a65392ba5340c39aa0
                 if not pid:
                     action, _states = model.predict(obs)
                 else:
@@ -399,8 +460,13 @@ elif "verify" in sys.argv:
                 action, _states = model.predict(obs)
             else:
                 action = [controller.control(obs)]
+<<<<<<< HEAD
             for point in boxes:
                 obs, info = env.reset(thval=point[0], vval=point[1])
+=======
+            for i in range(len(nonquants[j])):
+                obs, info = env.reset(thval=nonquants[j][i][0], vval=nonquants[j][i][1])
+>>>>>>> e658a046474c1f60ac0ba7a65392ba5340c39aa0
                 obs, reward, terminated, truncated, info = env.step(action)
                 transformedpoints[-1].append([obs[1], obs[0]])
         
@@ -430,6 +496,7 @@ elif "verify" in sys.argv:
         # Optionally, you can close the shape by connecting the last point to the first
         ax.set_xlim(2*th_staterange[0][0], 2*th_staterange[1][0])
         ax.set_ylim(2*v_staterange[0], 2*v_staterange[1])
+<<<<<<< HEAD
         # add a legend saying the blue is the original and cyan is the transformed shape
         ax.legend(["Unsafe", "Safe", "Intial box", "1-step transformed box"], loc="upper right")
         # label
@@ -437,17 +504,31 @@ elif "verify" in sys.argv:
         plt.ylabel("Velocity starting conditions")
         plt.title("Controller 1-step Reachability ")
         plt.savefig("Controller 1-step Reachability.pdf") 
+=======
+        # label
+        plt.xlabel("Theta starting conditions")
+        plt.ylabel("Velocity starting conditions")
+        plt.title("Box Representation of Verification of Model")
+        plt.savefig("Box Representation of Verification of Model.png") 
+>>>>>>> e658a046474c1f60ac0ba7a65392ba5340c39aa0
         plt.show()
     else:
         states = [True for i in range(len(transformedpoints))]
         def verifypoint(point, states, ranges, onestep=False):
             if point[0] < -np.pi/2 or point[0] > np.pi/2:
                 return False
+<<<<<<< HEAD
             if not onestep:
                 for k in range(len(states)):
                     if states[k] == False:
                         if point[0] > ranges[k][0][0] and point[0] < ranges[k][0][1] and point[1] > ranges[k][1][0] and point[1] < ranges[k][1][1]:
                             return False
+=======
+            for k in range(len(states)):
+                if states[k] == False:
+                    if point[0] > ranges[k][0][0] and point[0] < ranges[k][0][1] and point[1] > ranges[k][1][0] and point[1] < ranges[k][1][1]:
+                        return False
+>>>>>>> e658a046474c1f60ac0ba7a65392ba5340c39aa0
             return True
         laststates = []
         start = True
@@ -459,7 +540,11 @@ elif "verify" in sys.argv:
             
             for i in range(len(states)):
                 if states[i]:  # Only check if the current state is True
+<<<<<<< HEAD
                     states[i] = all(verifypoint(transformedpoints[i][j], states, boxranges, "onestep" in sys.argv) 
+=======
+                    states[i] = all(verifypoint(transformedpoints[i][j], states, boxranges) 
+>>>>>>> e658a046474c1f60ac0ba7a65392ba5340c39aa0
                                     for j in range(len(transformedpoints[i])))
 
         
@@ -492,6 +577,7 @@ elif "verify" in sys.argv:
         #label the plot
         plt.xlabel("Theta starting conditions")
         plt.ylabel("Velocity starting conditions")
+<<<<<<< HEAD
         plt.title(f"Geometry Based Verification of {'Quantized' if quant else 'Non-Quantized'} {'PID' if pid else 'Neural Networ'} Controller")
 
         # add a legend saying green is safe and red is unsafe
@@ -505,6 +591,12 @@ elif "verify" in sys.argv:
 
         # Show the plot
         plt.savefig("Geometry based Verification of Controller.pdf") 
+=======
+        plt.title("Geometry based Verification of Model")
+
+        # Show the plot
+        plt.savefig("Geometry based Verification of Model.png") 
+>>>>>>> e658a046474c1f60ac0ba7a65392ba5340c39aa0
         plt.show()
 
     if False: # generates a chart of one-step directions. Interesting, but not needed.
