@@ -13,6 +13,42 @@ import sys
 import time
 import torch
 
+
+
+
+class PIDController:
+    def __init__(self, setpoint=0, kp=10, ki=0, kd=0, dt=0.1):
+        self.controlhistory = []
+        self.integral = 0
+        self.previous_error = 0
+        self.setpoint = setpoint
+        self.kp = kp 
+        self.ki = ki 
+        self.kd = kd 
+        self.dt = dt
+
+    def control(self, y):
+        error = self.setpoint - y
+
+        self.integral += error * self.dt
+        derivative = (error - self.previous_error) / self.dt
+
+        if self.ki != 0:
+            self.integral = max(-1 / self.ki, min(1 / self.ki, self.integral))
+
+        self.previous_error = error
+
+        u = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
+
+        self.controlhistory.append(u)
+
+        return u
+
+
+
+
+
+
 # Parallel environments
 vec_env = make_vec_env("inv_pend_env/inv_pendulum_v0", n_envs=8)
 
@@ -89,14 +125,24 @@ if "train" in sys.argv:
     print(f"Final mean_reward={mean_reward:.2f} +/- {std_reward}")
 
 elif "test" in sys.argv:
-    model = PPO.load("checkpoints/model-sb3.pth")
-    for _ in range(20):
-        obs = vec_env.reset()
-        for i in range(20):
-            time.sleep(0.1)
-            action, _states = model.predict(obs)
-            obs, rewards, dones, info = vec_env.step(action)
-            vec_env.render("human")
+    if "pid" not in sys.argv:
+        model = PPO.load("checkpoints/model-sb3.pth")
+        for _ in range(20):
+            obs = vec_env.reset()
+            for i in range(20):
+                time.sleep(0.1)
+                action, _states = model.predict(obs)
+                obs, rewards, dones, info = vec_env.step(action)
+                vec_env.render("human")
+    else:
+        controller = PIDController()
+        for _ in range(20):
+            obs = vec_env.reset()
+            for i in range(20):
+                time.sleep(0.1)
+                action = [controller.control(obs[1])]
+                obs, rewards, dones, info = vec_env.step(action)
+                vec_env.render("human")
 elif "eval" in sys.argv:
     env = gym.make("inv_pend_env/inv_pendulum_v0")
     quant = "quant" in sys.argv
@@ -302,15 +348,24 @@ elif "verify" in sys.argv:
     transformedpoints = []
     box = 0
 
+    PID = "pid" in sys.argv
+    if PID:
+        controller = PIDController()
     if not quant:
         for i in range(len(nonquants[box])):
             obs, info = env.reset(thval=nonquants[box][i][0], vval=nonquants[box][i][1])
-            action, _states = model.predict(obs)
+            if not PID:
+                action, _states = model.predict(obs)
+            else:
+                action = [controller.control(obs[1])]
             obs, reward, terminated, truncated, info = env.step(action)
             transformedpoints.append([obs[1], obs[0]])
     else:
         obs, info = env.reset(thval=quantpoints[box][0], vval=quantpoints[box][1])
-        action, _states = model.predict(obs)
+        if not PID:
+            action, _states = model.predict(obs)
+        else:
+            action = [controller.control(obs[1])]
         for i in range(len(nonquants[box])):
             obs, info = env.reset(thval=nonquants[box][i][0], vval=nonquants[box][i][1])
             obs, reward, terminated, truncated, info = env.step(action)
