@@ -2,6 +2,7 @@ import gymnasium as gym
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 from matplotlib import colors
 import matplotlib.patches as patches
 from scipy.interpolate import interp1d
@@ -17,6 +18,7 @@ import scipy.spatial
 import random
 import scipy.spatial
 
+matplotlib.rcParams.update({'font.size': 22})
 
 
 
@@ -294,11 +296,11 @@ elif "eval" in sys.argv:
         max_val = max(max(sublist) for sublist in starts)
         
         cmap = mcolors.LinearSegmentedColormap.from_list(
-            "custom_cmap", [(0, "#0072B2"), (1, "#009E73")]
+            "custom_cmap", [(0, "blue"), (1, "orange")]
         )
         for i, thval in enumerate(thconditions):
             for j, vvval in enumerate(vconditions):
-                color = cmap((starts[i, j] - min_val) / (max_val - min_val))
+                color = cmap((starts[j][i] - min_val) / (max_val - min_val))
                 # Create a rectangle patch
                 rect = patches.Rectangle(
                     (thval - width / 2, vvval - height / 2),
@@ -317,8 +319,8 @@ elif "eval" in sys.argv:
         
         
         # Set labels and title
-        plt.xlabel("Theta starting conditions")
-        plt.ylabel("Velocity starting conditions")
+        plt.xlabel("Theta")
+        plt.ylabel("Velocity")
         plt.title("Command by Condition")
         
         # Add colorbar
@@ -341,8 +343,8 @@ elif "verify" in sys.argv:
     env = gym.make("inv_pend_env/inv_pendulum_v0")
     th_staterange = [env.observation_space.low, env.observation_space.high]
     v_staterange = [-1, 1]
-    boxinitdimensions = 100
-    pps = 10
+    boxinitdimensions = 10
+    pps = 15
     if "center" in sys.argv:
         sys.argv.append("box")
     sqsize = ((abs(th_staterange[0][0]) + abs(th_staterange[1][0]))/ (2*boxinitdimensions), (abs(v_staterange[0]) + abs(v_staterange[1]))/ (2*boxinitdimensions))
