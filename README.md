@@ -1,6 +1,6 @@
 ## Setting up the Environment
 
-First install [miniconda](https://docs.anaconda.com/miniconda/), then run the following commands to create and enter the environment.
+First install [miniconda](https://docs.anaconda.com/miniconda/), then run the following commands to create and enter the environment:
 
 ```sh
 $ conda env create -f environment.yml
