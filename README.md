@@ -64,7 +64,7 @@ $ python model-sb3.py eval initforce
 ```
 
 
-## quantization
+## Quantization
 
 Verification of the model directly is impossible as it can take any floating point number and it is impossible to test them all. For this reason quantization is used. To quantize the model we create many different regions within the conditions and round every input to the center of its region. This results in a testable number of centers whoch can get passed through the model, allowing for verification. This can be enabled in any of the verification graphs by appending `quant` to the command.
 
