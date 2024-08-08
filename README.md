@@ -47,7 +47,7 @@ In order to use the model, you must first train it. This can be done by running 
 ```sh
 $ python model-sb3.py train
 ```
-This will train the model for 500,000 steps and output it to /path/to/invpendulum_gym/checkpoints/model-sb3.pth. In my testing 2-4 million steps resulted in an effective model. To train for more steps you can modify the code to specify a different training duration, or you can run the following to train for a further 500,000 steps.
+This will train the model for 500,000 steps and output it to `/path/to/invpendulum_gym/checkpoints/model-sb3.pth`. In my testing 2-4 million steps resulted in an effective model. To train for more steps you can modify the code to specify a different training duration, or you can run the following to train for a further 500,000 steps.
 ```sh
 $ python model-sb3.py train continue
 ```
