@@ -7,8 +7,6 @@ from scipy import integrate
 import datetime
 from pathlib import Path
 import torch
-# from numba import jitclass
-# from numba import int32, float32
 
 
 
@@ -26,7 +24,6 @@ class InvPend(gym.Env):
                  disallowcontrol: bool = False, 
                  timestep: int | float = 0.1,
                  terminate: bool = True,
-                 jit: bool = False,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._theta = self.np_random.uniform(low=-np.pi/2, high=np.pi/2)
@@ -35,7 +32,6 @@ class InvPend(gym.Env):
         self._mass = mass
         self._length = length
         self._setpoint = setpoint
-        self.jit = jit
         self.timestep = timestep
         self.disallowcontrol = disallowcontrol
         self.seed = seed or None

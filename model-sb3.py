@@ -103,7 +103,7 @@ if "train" in sys.argv:
 
     print(f"Untrained mean_reward={mean_reward:.2f} +/- {std_reward}")
 
-    length = int(10e6)
+    length = int(5e5)
 
     # work around a crash that occurs when training for too long
     lengths = [int(5e6) for i in range(0, int(length/int(5e6)))]
